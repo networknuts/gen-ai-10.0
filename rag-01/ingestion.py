@@ -16,7 +16,7 @@ pdf_text_data = loader.load()
 print("PDF LOADED SUCCESSFULLY")
 
 # STEP 2: CREATE A CHUNKING STRATEGY
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=100, chunk_overlap=0)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=200)
 chunked_data = text_splitter.split_documents(pdf_text_data)
 print("PDF CHUNKED SUCCESSFULLY")
 
