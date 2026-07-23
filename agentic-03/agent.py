@@ -2,6 +2,8 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END 
 from typing import TypedDict 
+from pymongo import MongoClient
+from langgraph.checkpoint.mongodb import MongoDBSaver
 import json 
 
 # SETUP THE ENVIRONMENT
@@ -16,6 +18,8 @@ llm_qa = ChatOpenAI(
 )
 
 MAX_RETRIES = 3
+
+client = MongoClient("mongodb://localhost:27017")
 
 # DEFINE THE STATE
 class CodeState(TypedDict):
@@ -128,24 +132,37 @@ graph.add_edge("failure", END)
 graph.add_edge("retry","developer")
 
 # COMPILE THE AGENTIC WORKFLOW
-app = graph.compile()
+memory = MongoDBSaver(client)
+app = graph.compile(checkpointer=memory)
 
-# TAKE THE USER INPUT
-user_input = input("Enter Java Request: ")
+# DECLARE THE UNIQUE IDENTIFIERS
+user_id = "2"
+session_id = "1"
 
-# EXECUTE THE WORKFLOW
-result = app.invoke({
-    "user_request": user_input,
-    "code": "",
-    "rating": 0,
-    "feedback": "",
-    "retries": 0,
-    "status": "running"
-})
+thread_id = f"{user_id}_{session_id}"
 
-print("\nFINAL RESULT\n")
-print(f"Code: {result['code']}")
-print(f"Rating: {result['rating']}")
-print(f"Retries Used: {result['retries']}")
-print(f"Feedback: {result['feedback']}")
-print(f"Status: {result['status']}")
+# CHECK FOR EXISTING THREAD
+existing_thread = memory.get({"configurable": {"thread_id": thread_id}})
+
+try:
+    if existing_thread:
+        print("RESUMING FROM SAVED CHECKPOINT")
+        result = app.invoke({},config={"configurable": {"thread_id": thread_id}})
+    else:
+        user_input = input("Enter Java Request: ")
+        result = app.invoke({
+            "user_request": user_input,
+            "code": "",
+            "rating": 0,
+            "feedback": "",
+            "retries": 0,
+            "status": "running"
+        },config={"configurable": {"thread_id": thread_id}})
+    print("\nFINAL RESULT\n")
+    print(f"Code: {result['code']}")
+    print(f"Rating: {result['rating']}")
+    print(f"Retries Used: {result['retries']}")
+    print(f"Feedback: {result['feedback']}")
+    print(f"Status: {result['status']}")
+except Exception as e:
+    print(f"Error: {e}")
